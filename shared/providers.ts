@@ -111,6 +111,19 @@ export function isSubscriptionProvider(provider: AiProvider): boolean {
 }
 
 /**
+ * Whether reaching this provider needs a key the user pastes into Settings.
+ *
+ * Three kinds of provider answer no: the subscription runtimes carry their own signed-in
+ * session, the local servers take an optional token rather than a key, and the bundled
+ * runtime needs nothing at all. A feature deciding "can I generate?" has to ask this
+ * before probing the key store, because for those providers an absent key is the normal
+ * state — treating it as missing configuration refuses work that would have succeeded.
+ */
+export function requiresApiKey(provider: AiProvider): boolean {
+  return !isSubscriptionProvider(provider) && !isLocalProvider(provider) && provider !== 'nodus';
+}
+
+/**
  * Providers with a free tier whose hard per-minute limits are worth shaping requests for. When the
  * user flags one (settings.providerFreeTier), Nodus caps max_tokens to fit and retries 429s instead
  * of failing the scan. Others ignore the flag. See freeTierMaxTokens in electron/ai/providers.ts.

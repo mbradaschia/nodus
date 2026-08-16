@@ -16,6 +16,7 @@ import { getDb } from '../db/database';
 import { parseBylineEntry } from '../db/authorsRepo';
 import { getSettings } from '../db/settingsRepo';
 import { getApiKey } from '../secrets/secretStore';
+import { requiresApiKey } from '@shared/providers';
 import { buildIdeaGraph, getContradictions } from '../graph/graphService';
 import { getImmersionSession, recordImmersionAnswer, saveImmersionSession } from '../db/immersionRepo';
 import { buildWritingWorkshopSnapshot } from './writingWorkshop';
@@ -353,7 +354,11 @@ export async function buildImmersionScope(request: ImmersionScopeRequest): Promi
   const warnings: string[] = [];
   const settings = getSettings();
   const plannedModel = settings.immersionModel ?? settings.synthesisModel ?? null;
-  const aiKeyAvailable = plannedModel != null && getApiKey(plannedModel.provider) != null;
+  // Subscription runtimes, the local servers and the bundled runtime all reach the model
+  // without a key, so probing the key store for them reports "not configured" for what is
+  // their normal state — and the view disables the generate button on this flag.
+  const aiKeyAvailable = plannedModel != null
+    && (!requiresApiKey(plannedModel.provider) || getApiKey(plannedModel.provider) != null);
   if (!aiKeyAvailable) {
     warnings.push(
       plannedModel
