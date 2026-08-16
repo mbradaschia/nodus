@@ -82,6 +82,9 @@ import {
   onChatGptSubscriptionStatusChanged,
 } from './ai/codexSubscription';
 import {
+  onClaudeCodeSubscriptionStatusChanged,
+} from './ai/claudeCodeSubscription';
+import {
   onGitHubCopilotSubscriptionStatusChanged,
 } from './ai/githubCopilotSubscription';
 import { onOpenCodeGoUsageStatusChanged } from './ai/openCodeGoUsage';
@@ -217,6 +220,11 @@ export function registerIpc(
   onChatGptSubscriptionStatusChanged((status) => {
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) win.webContents.send('ai:chatgptSubscription:statusChanged', status);
+    }
+  });
+  onClaudeCodeSubscriptionStatusChanged((status) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send('ai:claudeCodeSubscription:statusChanged', status);
     }
   });
   onGitHubCopilotSubscriptionStatusChanged((status) => {
