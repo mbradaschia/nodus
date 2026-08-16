@@ -51,6 +51,7 @@ export function openAiCompatBase(provider: AiProvider): string | null {
       return `${localBaseUrl(provider)}/v1`;
     case 'anthropic':
     case 'codex':
+    case 'claude-code':
     case 'github-copilot':
     case 'opencode-go':
     case 'nodus':
@@ -156,6 +157,9 @@ export function reasoningBody(
     case 'codex':
       // The App Server receives effort as a first-class turn parameter.
       return {};
+    case 'claude-code':
+      // The Agent SDK receives effort as a first-class query option.
+      return {};
     case 'github-copilot':
       // The official SDK receives effort as a first-class session parameter.
       return {};
@@ -242,6 +246,8 @@ export async function listModels(provider: AiProvider, key: string | null): Prom
       return listOpenAiStyle('https://api.openai.com/v1/models', key, true);
     case 'codex':
       throw new Error('Los modelos de Codex se consultan mediante el runtime de suscripción gestionado.');
+    case 'claude-code':
+      throw new Error('Los modelos de Claude se consultan mediante el runtime de suscripción gestionado.');
     case 'github-copilot':
       throw new Error('Los modelos de GitHub Copilot se consultan mediante su runtime oficial.');
     case 'opencode-go':
