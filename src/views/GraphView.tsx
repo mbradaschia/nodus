@@ -9,7 +9,7 @@ import { IdeaDuplicatesModal } from './IdeaDuplicatesModal';
 import { EdgeAuditModal } from './EdgeAuditModal';
 import { TutorPanel } from './TutorPanel';
 import { SigmaGraph, type SigmaGraphApi, type GraphViewLevel } from './graph/SigmaGraph';
-import { buildThemeConstellation, buildThemeBackbone, buildPresetAtlas } from './graph/model';
+import { buildThemeConstellation, buildThemeBackbone, buildPresetAtlas, scopeNeighbourhood } from './graph/model';
 import { GraphErrorBoundary } from './graph/GraphErrorBoundary';
 import type { GraphNavigationTarget, GraphPresetId } from '../navigation';
 import { t, tx } from '../i18n';
@@ -952,6 +952,11 @@ interface Filters {
   readState: 'all' | 'read' | 'unread';
   minConfidence: number;
   basis: 'all' | 'explicit';
+  /** Trozo del grafo al que llega una navegación: las semillas y su primer salto.
+   *  Vacío es el grafo entero. NUNCA se persiste —ver el efecto de guardado—,
+   *  porque un acotado pegajoso deja el grafo casi vacío en la visita siguiente
+   *  sin que nada explique por qué. */
+  scopeNodeIds: string[];
 }
 
 const DEFAULT_FILTERS: Filters = {
@@ -966,6 +971,7 @@ const DEFAULT_FILTERS: Filters = {
   readState: 'all',
   minConfidence: 0,
   basis: 'all',
+  scopeNodeIds: [],
 };
 
 const GRAPH_PRESETS: {
@@ -1025,6 +1031,7 @@ function cloneFilters(filters: Filters): Filters {
     edgeTypes: [...filters.edgeTypes],
     workIds: [...filters.workIds],
     authors: [...filters.authors],
+    scopeNodeIds: [...filters.scopeNodeIds],
   };
 }
 
@@ -1039,6 +1046,7 @@ function graphPreset(id: GraphPresetId, target?: GraphNavigationTarget): { lens:
     search: target?.search ?? '',
     theme: target?.theme ?? '',
     workIds: target?.workId ? [target.workId] : [],
+    scopeNodeIds: target?.scopeNodeIds ? [...target.scopeNodeIds] : [],
   };
   switch (id) {
     case 'contradictions':
@@ -1114,6 +1122,9 @@ function loadFilters(storageKey = FILTER_KEY, versionKey = FILTER_VERSION_KEY): 
     merged.edgeTypes = Array.from(new Set([...(merged.edgeTypes ?? []), 'contains']));
     merged.workIds = Array.isArray(merged.workIds) ? merged.workIds : [];
     merged.authors = Array.isArray(merged.authors) ? merged.authors : [];
+    // Un grafo acotado pertenece a la navegación que lo abrió, no a las preferencias
+    // del usuario. Se ignora lo que hubiera guardado una versión anterior.
+    merged.scopeNodeIds = [];
     return merged;
   } catch {
     return defaultFilters();
@@ -1138,6 +1149,7 @@ function navigationNotice(target: GraphNavigationTarget, preset: GraphPresetId):
   if (target.workTitle) return `${t('Lectura:')} ${target.workTitle}`;
   if (target.edgeId) return t('Relación enfocada desde otra pantalla');
   if (target.nodeId) return t('Idea enfocada desde otra pantalla');
+  if (target.scopeNodeIds?.length) return t('Grafo acotado desde otra pantalla');
   if (target.theme) return `${t('Tema:')} ${target.theme}`;
   return t(GRAPH_PRESETS.find((p) => p.id === preset)?.description ?? '') || t('Contexto aplicado');
 }
@@ -1501,7 +1513,10 @@ export function GraphView({
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(filterStorageKey, JSON.stringify(filters));
+    // El acotado se queda fuera del disco: es el contexto de la pantalla que trajo
+    // aquí al usuario y muere con ella, como el aviso de contexto que lo acompaña.
+    const { scopeNodeIds: _scope, ...persisted } = filters;
+    localStorage.setItem(filterStorageKey, JSON.stringify(persisted));
     localStorage.setItem(filterVersionStorageKey, FILTER_VERSION);
   }, [filterStorageKey, filterVersionStorageKey, filters]);
 
@@ -1557,8 +1572,12 @@ export function GraphView({
     if (lastUserFocusRef.current) focusNodeByIdRef.current(lastUserFocusRef.current);
   }, [depthStorageKey, highlightDepth]);
 
+  // El zoom semántico sustituye la escena por la constelación de temas y carga solo
+  // un panorama recortado. Un grafo acotado necesita lo contrario: la escena completa,
+  // para que sus semillas estén cargadas, y su propio modelo, para que se vean.
   const progressiveOverview =
-    USE_SIGMA && lens === 'ideas' && activePreset === 'overview' && !filters.search.trim() && filters.workIds.length === 0;
+    USE_SIGMA && lens === 'ideas' && activePreset === 'overview' && !filters.search.trim()
+    && filters.workIds.length === 0 && filters.scopeNodeIds.length === 0;
   const requestedTheme = graphLevel.level === 'theme'
     ? graphLevel.theme
     : graphLevel.level === 'corpus' && filters.theme
@@ -1731,7 +1750,9 @@ export function GraphView({
     if (USE_SIGMA) return [];
     const f = filters;
     const q = f.search.toLowerCase();
+    const scope = scopeNeighbourhood(data, f.scopeNodeIds);
     let visibleNodes = data.nodes.filter((n) => {
+      if (scope && !scope.has(n.id)) return false;
       if (lens === 'ideas' && !f.nodeTypes.includes(n.type)) return false;
       if (lens === 'ideas' && f.theme && !n.themes.includes(f.theme)) return false;
       if (f.workIds.length > 0 && !(n.workIds ?? []).some((id) => f.workIds.includes(id))) return false;
@@ -1872,7 +1893,9 @@ export function GraphView({
       ? backboneModel ?? constellationModel
       : constellationModel;
   const presetAtlasModel = useMemo(
-    () => (USE_SIGMA && !levelsActive && !filters.search.trim()
+    // El atlas muestrea un subconjunto representativo del preset. Sobre un grafo ya
+    // acotado a un puñado de ideas eso solo puede quitar las que se vino a ver.
+    () => (USE_SIGMA && !levelsActive && !filters.search.trim() && filters.scopeNodeIds.length === 0
       ? buildPresetAtlas(data, filters, lens, activePreset)
       : null),
     [activePreset, data, filters, lens, levelsActive]
@@ -3185,7 +3208,7 @@ export function GraphView({
     applyPreset(preset, target);
     // Keep the semantic-zoom level consistent with the deep-link: a focused node,
     // edge or work needs the full graph; a theme link opens that theme's backbone.
-    if (target.nodeId || target.edgeId || target.workId) setGraphLevel({ level: 'full' });
+    if (target.nodeId || target.edgeId || target.workId || target.scopeNodeIds?.length) setGraphLevel({ level: 'full' });
     else if (target.theme) setGraphLevel({ level: 'theme', theme: target.theme });
     else setGraphLevel({ level: 'corpus' });
     if (target.openTutor) setTutorOpen(true);
@@ -3204,7 +3227,7 @@ export function GraphView({
       let handled = false;
       if (current.edgeId) handled = openEdgeByIdRef.current(current.edgeId);
       else if (current.nodeId) handled = openNodeByIdRef.current(current.nodeId);
-      else if (current.workId || current.theme || current.search) {
+      else if (current.workId || current.theme || current.search || current.scopeNodeIds?.length) {
         fitGraph();
         handled = true;
       }

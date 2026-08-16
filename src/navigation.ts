@@ -343,6 +343,10 @@ export interface GraphNavigationTarget {
   search?: string;
   openTutor?: boolean;
   label?: string;
+  /** Acota el grafo a estas ideas y su primer salto, en vez de enfocar una sola
+   *  como hace `nodeId`. Lo usa Cobertura para abrir el trozo que responde a una
+   *  sub-pregunta; ver scopeNeighbourhood en views/graph/model.ts. */
+  scopeNodeIds?: string[];
 }
 
 export interface AssistantNavigationTarget {
