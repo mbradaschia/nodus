@@ -33,6 +33,7 @@ import {
 } from '@shared/studentPseudonyms';
 import { classifyProviderError } from './providerErrors';
 import { completeWithChatGptSubscription } from './codexSubscription';
+import { completeWithClaudeCodeSubscription } from './claudeCodeSubscription';
 import { completeWithGitHubCopilotSubscription } from './githubCopilotSubscription';
 import { completeWithOpenCodeGo } from './openCodeGoCompletion';
 import { recordOpenCodeGoUsage } from './openCodeGoUsage';
@@ -522,6 +523,20 @@ async function rawComplete(
       throw subscriptionError(error);
     }
   }
+  if (model.provider === 'claude-code') {
+    try {
+      return await completeWithClaudeCodeSubscription({
+        model: model.model,
+        system: withJsonModeDirective(opts.system, jsonMode),
+        user: opts.user,
+        reasoning,
+        timeoutMs: opts.timeoutMs,
+        images: opts.images,
+      });
+    } catch (error) {
+      throw subscriptionError(error);
+    }
+  }
   if (model.provider === 'github-copilot') {
     try {
       return await completeWithGitHubCopilotSubscription({
@@ -924,6 +939,27 @@ async function rawCompleteStream(
         images: opts.images,
         signal,
         onDelta: emitContent,
+      });
+      if (!full && answer) emitContent(answer);
+      return finish();
+    } catch (error) {
+      if (signal?.aborted) return finish();
+      throw subscriptionError(error);
+    }
+  }
+
+  if (model.provider === 'claude-code') {
+    try {
+      const answer = await completeWithClaudeCodeSubscription({
+        model: model.model,
+        system: opts.system,
+        user: opts.user,
+        reasoning,
+        timeoutMs: opts.timeoutMs,
+        images: opts.images,
+        signal,
+        onDelta: emitContent,
+        onReasoningDelta: emitReasoning,
       });
       if (!full && answer) emitContent(answer);
       return finish();

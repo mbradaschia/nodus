@@ -17,6 +17,7 @@ import type {
   BrowserConnectorExportResult,
   ChatGptSubscriptionLogin,
   ChatGptSubscriptionStatus,
+  ClaudeCodeSubscriptionStatus,
   ContentTranslation,
   ContentTranslationSummary,
   CopilotInstallResult,
@@ -151,6 +152,12 @@ export interface PlatformApi {
   cancelChatGptSubscriptionLogin(loginId: string): Promise<ChatGptSubscriptionStatus>;
   logoutChatGptSubscription(): Promise<ChatGptSubscriptionStatus>;
   onChatGptSubscriptionStatusChanged(cb: (status: ChatGptSubscriptionStatus) => void): () => void;
+
+  // Claude subscription access through the official Claude Agent SDK runtime, reusing
+  // the session the user's own `claude` CLI holds. Read-only by design: the terminal
+  // owns sign-in, Nodus only observes it, and no credential crosses IPC.
+  getClaudeCodeSubscriptionStatus(): Promise<ClaudeCodeSubscriptionStatus>;
+  onClaudeCodeSubscriptionStatusChanged(cb: (status: ClaudeCodeSubscriptionStatus) => void): () => void;
 
   // GitHub Copilot subscription access through GitHub's official SDK/CLI.
   getGitHubCopilotSubscriptionStatus(): Promise<GitHubCopilotSubscriptionStatus>;
