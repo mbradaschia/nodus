@@ -10,6 +10,7 @@ export const AI_PROVIDERS: AiProvider[] = [
   'anthropic',
   'openai',
   'codex',
+  'claude-code',
   'github-copilot',
   'opencode-go',
   'openrouter',
@@ -24,7 +25,7 @@ export const AI_PROVIDERS: AiProvider[] = [
 
 /** Providers whose credentials are Nodus-managed API keys/tokens. ChatGPT's
  * managed OAuth session belongs to Codex and must never enter backup/recovery. */
-export const SECRET_PROVIDERS: Exclude<AiProvider, 'codex' | 'github-copilot' | 'nodus'>[] = [
+export const SECRET_PROVIDERS: Exclude<AiProvider, 'codex' | 'claude-code' | 'github-copilot' | 'nodus'>[] = [
   'anthropic',
   'openai',
   'opencode-go',
@@ -59,6 +60,7 @@ export const PROVIDER_LABELS: Record<AiProvider, string> = {
   anthropic: 'Anthropic',
   openai: 'OpenAI',
   codex: 'ChatGPT · Codex',
+  'claude-code': 'Claude · Suscripción',
   'github-copilot': 'GitHub Copilot',
   'opencode-go': 'OpenCode Go',
   openrouter: 'OpenRouter',
@@ -96,12 +98,12 @@ export function isLocalProvider(provider: AiProvider): provider is LocalProvider
 }
 
 /**
- * Providers billed against a personal ChatGPT / GitHub subscription instead of
+ * Providers billed against a personal ChatGPT / Claude / GitHub subscription instead of
  * pay-per-use API credit. Their runtimes are agent protocols that accept a prompt, a
  * model and a reasoning effort and nothing else — which is why the two predicates
  * below both key off this one list rather than repeating it.
  */
-export const SUBSCRIPTION_PROVIDERS: AiProvider[] = ['codex', 'github-copilot'];
+export const SUBSCRIPTION_PROVIDERS: AiProvider[] = ['codex', 'claude-code', 'github-copilot'];
 
 /** Usage lands on the user's plan quota (weekly/monthly caps), not on API credit. */
 export function isSubscriptionProvider(provider: AiProvider): boolean {
