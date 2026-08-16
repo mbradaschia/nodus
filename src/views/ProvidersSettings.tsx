@@ -4,6 +4,7 @@ import type {
   AppSettings,
   ChatGptSubscriptionRateLimitWindow,
   ChatGptSubscriptionStatus,
+  ClaudeCodeSubscriptionStatus,
   CodexReasoningEffort,
   GitHubCopilotSubscriptionQuotaWindow,
   GitHubCopilotSubscriptionStatus,
@@ -117,6 +118,14 @@ export function ProvidersSettings({
               expanded={open === p}
               onToggle={() => setOpen(open === p ? null : p)}
               onChange={onChange}
+              isFav={isFav}
+              toggleFav={toggleFav}
+            />
+          ) : p === 'claude-code' ? (
+            <ClaudeCodeSubscriptionRow
+              key={p}
+              expanded={open === p}
+              onToggle={() => setOpen(open === p ? null : p)}
               isFav={isFav}
               toggleFav={toggleFav}
             />
@@ -337,6 +346,123 @@ function ChatGptSubscriptionRow({
               )}
               <button className="btn btn-ghost border border-neutral-300 dark:border-neutral-700" onClick={() => void refresh()} disabled={loading}>{t('Comprobar estado')}</button>
             </div>
+          )}
+
+          {(error || status?.error) && <div className="text-xs text-red-600 dark:text-red-400">{error || status?.error}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClaudeCodeSubscriptionRow({
+  expanded,
+  onToggle,
+  isFav,
+  toggleFav,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+  isFav: (m: ModelRef) => boolean;
+  toggleFav: (m: ModelRef) => Promise<void>;
+}) {
+  const [status, setStatus] = useState<ClaudeCodeSubscriptionStatus | null>(null);
+  const [models, setModels] = useState<ModelInfo[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  const refresh = async () => {
+    setLoading(true);
+    setError(null);
+    try { setStatus(await window.nodus.getClaudeCodeSubscriptionStatus()); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => {
+    void refresh();
+    return window.nodus.onClaudeCodeSubscriptionStatusChanged(setStatus);
+  }, []);
+
+  const loadModels = async () => {
+    setLoadingModels(true);
+    setError(null);
+    try { setModels(await window.nodus.listModels('claude-code')); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setLoadingModels(false); }
+  };
+
+  const filtered = (models ?? []).filter((model) => {
+    const query = search.toLowerCase();
+    return !query || model.id.toLowerCase().includes(query) || (model.name ?? '').toLowerCase().includes(query);
+  });
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50/60 dark:border-amber-700/50 dark:bg-amber-950/10" data-testid="claude-code-subscription-provider">
+      <button className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm" onClick={onToggle}>
+        <span className="text-neutral-500">{expanded ? '▾' : '▸'}</span>
+        <span className="font-medium">{PROVIDER_LABELS['claude-code']}</span>
+        {loading ? (
+          <span className="text-xs text-neutral-600">{t('comprobando…')}</span>
+        ) : (
+          <span className={status?.connected ? 'text-emerald-400 text-xs' : 'text-neutral-600 text-xs'}>
+            {status?.connected ? `● ${t('suscripción conectada')}` : `○ ${t('sin conectar')}`}
+          </span>
+        )}
+        {status?.planType && <span className="ml-auto text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300">{status.planType}</span>}
+      </button>
+
+      {expanded && (
+        <div className="space-y-3 px-3 pb-3">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-neutral-600 dark:border-amber-800/60 dark:bg-amber-950/20 dark:text-neutral-400">
+            <p>{t('Conexión mediante el Claude Agent SDK oficial. Nodus reutiliza la sesión de Claude Code de tu terminal y no lee ni almacena tus credenciales.')}</p>
+            <p className="mt-1">{t('La sesión se gestiona desde la terminal: usa «claude auth login» para iniciarla y «claude auth logout» para cerrarla.')}</p>
+            <p className="mt-1">{t('El uso consume la cuota incluida en tu plan de Claude (Pro o Max); no consume saldo de la API de Anthropic.')}</p>
+            <p className="mt-1">{t('Cada petición usa un turno aislado, sin herramientas, sin acceso al sistema de archivos y sin cargar tus MCP, plugins ni instrucciones personales.')}</p>
+            <button className="mt-1 text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200" onClick={() => window.nodus.openExternal('https://code.claude.com/docs/en/agent-sdk/typescript')}>
+              {t('Documentación oficial del Claude Agent SDK ↗')}
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {status?.connected ? (
+              <>
+                <span className="text-emerald-600 dark:text-emerald-400">{t('Conectado')}</span>
+                {status.email && <span className="text-neutral-600 dark:text-neutral-400">{status.email}</span>}
+                {status.organization && <span className="text-neutral-500">{status.organization}</span>}
+              </>
+            ) : (
+              <span className="text-neutral-600 dark:text-neutral-400">
+                {t('Sin sesión iniciada. Ejecuta «claude auth login» en tu terminal y vuelve a comprobar.')}
+              </span>
+            )}
+            <button className="btn btn-ghost border border-neutral-300 dark:border-neutral-700" onClick={() => void refresh()} disabled={loading}>
+              {t('Comprobar estado')}
+            </button>
+          </div>
+
+          {status?.connected && (
+            <>
+              <div className="flex gap-2 items-center">
+                <button className="btn btn-ghost border border-neutral-300 dark:border-neutral-700" onClick={() => void loadModels()} disabled={loadingModels}>
+                  {loadingModels ? t('Cargando…') : t('Cargar modelos de Claude')}
+                </button>
+                {models && <input className="input flex-1" placeholder={t('Buscar modelo…')} value={search} onChange={(e) => setSearch(e.target.value)} />}
+                {models && <span className="text-xs text-neutral-500">{filtered.length}</span>}
+              </div>
+              {models && (
+                <SettingsModelList className="max-h-72 overflow-y-auto" data-testid="provider-model-list-claude-code">
+                  <ModelList
+                    provider="claude-code"
+                    models={filtered.slice(0, 300)}
+                    isFav={isFav}
+                    toggleFav={toggleFav}
+                  />
+                </SettingsModelList>
+              )}
+            </>
           )}
 
           {(error || status?.error) && <div className="text-xs text-red-600 dark:text-red-400">{error || status?.error}</div>}

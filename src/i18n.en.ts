@@ -8451,4 +8451,11 @@ export const EN: Record<string, string> = {
   "Esta obra no registra ningún autor: sus ideas se atribuyen provisionalmente a quien la edita": "This work records no author: its ideas are provisionally attributed to whoever edited it",
   "atribución provisional": "provisional attribution",
   "provisional": "provisional",
+  "El uso consume la cuota incluida en tu plan de Claude (Pro o Max); no consume saldo de la API de Anthropic.": "Usage draws on the quota included in your Claude plan (Pro or Max); it does not consume Anthropic API credit.",
+  "Cada petición usa un turno aislado, sin herramientas, sin acceso al sistema de archivos y sin cargar tus MCP, plugins ni instrucciones personales.": "Each request uses an isolated turn, with no tools, no filesystem access and without loading your MCP servers, plugins or personal instructions.",
+  "Documentación oficial del Claude Agent SDK ↗": "Official Claude Agent SDK documentation ↗",
+  "Cargar modelos de Claude": "Load Claude models",
+  "Conexión mediante el Claude Agent SDK oficial. Nodus reutiliza la sesión de Claude Code de tu terminal y no lee ni almacena tus credenciales.": "Connection through the official Claude Agent SDK. Nodus reuses the Claude Code session from your terminal and neither reads nor stores your credentials.",
+  "La sesión se gestiona desde la terminal: usa «claude auth login» para iniciarla y «claude auth logout» para cerrarla.": "The session is managed from the terminal: use «claude auth login» to sign in and «claude auth logout» to sign out.",
+  "Sin sesión iniciada. Ejecuta «claude auth login» en tu terminal y vuelve a comprobar.": "Not signed in. Run «claude auth login» in your terminal, then check again.",
 };
