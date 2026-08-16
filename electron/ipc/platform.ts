@@ -15,6 +15,7 @@ import { setApiKey, clearApiKey, getApiKey, getLocalServerAdminPassword } from '
 import { recoverLegacyApiKeys } from '../secrets/legacySecretRecovery';
 import { listEmbeddingModels, listModels, testLocalProvider } from '../ai/providers';
 import { cancelChatGptSubscriptionLogin, getChatGptSubscriptionStatus, listChatGptSubscriptionModels, logoutChatGptSubscription, startChatGptSubscriptionLogin } from '../ai/codexSubscription';
+import { getClaudeCodeSubscriptionStatus, listClaudeCodeSubscriptionModels } from '../ai/claudeCodeSubscription';
 import { cancelGitHubCopilotSubscriptionLogin, getGitHubCopilotSubscriptionStatus, listGitHubCopilotSubscriptionModels, logoutGitHubCopilotSubscription, startGitHubCopilotSubscriptionLogin } from '../ai/githubCopilotSubscription';
 import { getOpenCodeGoUsageStatus } from '../ai/openCodeGoUsage';
 import { listImageModels } from '../ai/imageModels';
@@ -202,6 +203,7 @@ export function registerPlatformIpc({ h, getWindow }: IpcContext): void {
     cancelChatGptSubscriptionLogin(loginId)
   );
   h('ai:chatgptSubscription:logout', async () => logoutChatGptSubscription());
+  h('ai:claudeCodeSubscription:status', async () => getClaudeCodeSubscriptionStatus());
   h('ai:githubCopilotSubscription:status', async () => getGitHubCopilotSubscriptionStatus());
   h('ai:githubCopilotSubscription:login', async () => startGitHubCopilotSubscriptionLogin());
   h('ai:githubCopilotSubscription:cancelLogin', async () => cancelGitHubCopilotSubscriptionLogin());
@@ -211,6 +213,7 @@ export function registerPlatformIpc({ h, getWindow }: IpcContext): void {
   // AI model discovery (OpenRouter needs no key; others use the stored key).
   h('ai:listModels', async (_e, provider: AiProvider) => {
     if (provider === 'codex') return listChatGptSubscriptionModels();
+    if (provider === 'claude-code') return listClaudeCodeSubscriptionModels();
     if (provider === 'github-copilot') return listGitHubCopilotSubscriptionModels();
     return listModels(provider, getApiKey(provider));
   });

@@ -80,6 +80,12 @@ export const platformApi: PlatformApi = {
     ipcRenderer.on('ai:chatgptSubscription:statusChanged', listener);
     return () => ipcRenderer.removeListener('ai:chatgptSubscription:statusChanged', listener);
   },
+  getClaudeCodeSubscriptionStatus: () => ipcRenderer.invoke('ai:claudeCodeSubscription:status'),
+  onClaudeCodeSubscriptionStatusChanged: (cb) => {
+    const listener = (_e: unknown, status: Parameters<typeof cb>[0]) => cb(status);
+    ipcRenderer.on('ai:claudeCodeSubscription:statusChanged', listener);
+    return () => ipcRenderer.removeListener('ai:claudeCodeSubscription:statusChanged', listener);
+  },
   getGitHubCopilotSubscriptionStatus: () => ipcRenderer.invoke('ai:githubCopilotSubscription:status'),
   startGitHubCopilotSubscriptionLogin: () => ipcRenderer.invoke('ai:githubCopilotSubscription:login'),
   cancelGitHubCopilotSubscriptionLogin: () => ipcRenderer.invoke('ai:githubCopilotSubscription:cancelLogin'),
