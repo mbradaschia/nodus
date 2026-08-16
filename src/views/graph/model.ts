@@ -46,6 +46,11 @@ export interface GraphFilters {
   readState: 'all' | 'read' | 'unread';
   minConfidence: number;
   basis: 'all' | 'explicit';
+  /** Semillas que acotan el grafo a un trozo concreto —las ideas que Cobertura
+   *  enlazó a una sub-pregunta, por ejemplo—. Vacío significa el grafo entero;
+   *  con contenido solo sobreviven las semillas y su primer salto. No se guarda
+   *  en disco: es contexto de una navegación, no una preferencia. */
+  scopeNodeIds?: string[];
 }
 
 export interface NodeModel {
@@ -216,6 +221,34 @@ function physicalEdgeIds(edges: GraphData['edges'], nodeCount: number, lens: Gra
 }
 
 /**
+ * Las semillas de un grafo acotado más su primer salto, o null si no hay acotado.
+ *
+ * El salto se da sobre TODAS las aristas del corpus, no solo sobre las que los
+ * filtros dejan dibujar: quien llega desde una sub-pregunta pide su vecindad, y
+ * esconder a la vecina porque su arista es de un tipo apagado dejaría el trozo
+ * más vacío de lo que prometían los enlaces de la tarjeta. Los filtros siguen
+ * mandando sobre lo que se ve —el acotado es una condición más, no un permiso—,
+ * así que la vecina que ellos rechacen seguirá fuera.
+ *
+ * Semillas que ya no están en el grafo cargado se ignoran sin ensanchar nada: una
+ * idea borrada tras el mapeo no debe devolver la red entera.
+ */
+export function scopeNeighbourhood(
+  data: GraphData,
+  scopeNodeIds: readonly string[] | undefined
+): Set<string> | null {
+  if (!scopeNodeIds?.length) return null;
+  const present = new Set(data.nodes.map((node) => node.id));
+  const scope = new Set(scopeNodeIds.filter((id) => present.has(id)));
+  const seeds = new Set(scope);
+  for (const edge of data.edges) {
+    if (seeds.has(edge.source)) scope.add(edge.target);
+    if (seeds.has(edge.target)) scope.add(edge.source);
+  }
+  return scope;
+}
+
+/**
  * The renderer-agnostic counterpart of GraphView's `elements` memo. Pure: same
  * inputs always produce the same model, so it is safe to call from a memo.
  */
@@ -228,7 +261,9 @@ export function buildGraphModel(
 ): GraphModel {
   const f = filters;
   const q = f.search.toLowerCase();
+  const scope = scopeNeighbourhood(data, f.scopeNodeIds);
   const nodeMatchesFilters = (n: GraphData['nodes'][number], includeSearch: boolean) => {
+    if (scope && !scope.has(n.id)) return false;
     if (lens === 'ideas' && !f.nodeTypes.includes(n.type)) return false;
     if (lens === 'ideas' && f.theme && !n.themes.includes(f.theme)) return false;
     if (f.workIds.length > 0 && !(n.workIds ?? []).some((id) => f.workIds.includes(id))) return false;
