@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  ResearchContextSelection,
   ResearchQuestion,
   ResearchQuestionDetail,
   RqCoverageLink,
@@ -489,37 +490,86 @@ function SubQuestionCard({
             ))}
           </div>
 
-          {mapped?.coverageStatus === 'disputed' && (
-            <button className="btn btn-ghost border border-neutral-700 text-xs gap-1.5 mt-2" onClick={onOpenDebates}>
-              <Icon name="scale" size={13} /> {t('Ver en Debates')}
-            </button>
-          )}
-          {mapped?.coverageStatus === 'uncovered' && (
-            <button
-              className="btn btn-ghost border border-neutral-700 text-xs gap-1.5 mt-2"
-              onClick={() =>
-                onOpenAssistant({
-                  title: t('Sub-pregunta sin cubrir'),
-                  selection: ASSISTANT_CONTEXTS.gap,
-                  prompt: `${t('Esta sub-pregunta no está cubierta por mi biblioteca. Sugiere cómo abordarla y qué tipo de fuentes buscar.')}\n\n${sub.text}`,
-                })
-              }
-            >
-              <Icon name="chat" size={13} /> {t('Asistente')}
-            </button>
-          )}
-          {mapped?.coverageStatus && mapped.coverageStatus !== 'uncovered' && (
-            <button
-              className="btn btn-ghost border border-neutral-700 text-xs gap-1.5 mt-2"
-              onClick={() => onOpenGraph({ preset: 'overview', label: sub.text })}
-            >
-              <Icon name="layers" size={13} /> {t('Grafo')}
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            {mapped?.coverageStatus === 'disputed' && (
+              <button className="btn btn-ghost border border-neutral-700 text-xs gap-1.5" onClick={onOpenDebates}>
+                <Icon name="scale" size={13} /> {t('Ver en Debates')}
+              </button>
+            )}
+            {/* El Asistente acompaña a las cuatro coberturas, no solo al hueco: una
+                sub-pregunta bien cubierta también se quiere pensar, y esconderle la
+                conversación obligaba a salir de la pantalla para tenerla. */}
+            {mapped?.coverageStatus && (
+              <button
+                data-testid="subquestion-assistant"
+                className="btn btn-ghost border border-neutral-700 text-xs gap-1.5"
+                onClick={() => onOpenAssistant(assistantTarget(mapped.coverageStatus!, sub.text, mapped.links))}
+              >
+                <Icon name="chat" size={13} /> {t('Asistente')}
+              </button>
+            )}
+            {/* El Grafo solo aparece si hay ideas que enseñar. Sin cubrir no las hay
+                —esa es su definición— y el botón abriría un grafo vacío. */}
+            {ideas.length > 0 && (
+              <button
+                data-testid="subquestion-graph"
+                className="btn btn-ghost border border-neutral-700 text-xs gap-1.5"
+                onClick={() => onOpenGraph({ preset: 'overview', scopeNodeIds: ideas.map((l) => l.refId), label: sub.text })}
+              >
+                <Icon name="layers" size={13} /> {t('Grafo')}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
+}
+
+/**
+ * Cada cobertura pide una conversación distinta. Abrir el Asistente con «háblame de
+ * esto» en las cuatro desperdicia lo único que Cobertura ya sabe: si la biblioteca
+ * responde, responde a medias, no responde o se contradice. El estado elige la
+ * apertura y el contexto de investigación; los enlaces de la tarjeta viajan con ella
+ * para que la respuesta se apoye en las mismas fuentes que el usuario está viendo.
+ */
+const ASSISTANT_OPENERS: Record<RqCoverageStatus, { title: string; prompt: string; selection: ResearchContextSelection }> = {
+  uncovered: {
+    title: 'Sub-pregunta sin cubrir',
+    prompt: 'Esta sub-pregunta no está cubierta por mi biblioteca. Sugiere cómo abordarla y qué tipo de fuentes buscar.',
+    selection: ASSISTANT_CONTEXTS.gap,
+  },
+  covered: {
+    title: 'Sub-pregunta bien cubierta',
+    prompt: 'Mi biblioteca cubre esta sub-pregunta. Sintetiza qué responde exactamente y dónde está el acuerdo entre las fuentes.',
+    selection: ASSISTANT_CONTEXTS.idea,
+  },
+  partial: {
+    title: 'Sub-pregunta parcialmente cubierta',
+    prompt: 'Mi biblioteca cubre esta sub-pregunta solo a medias. Separa qué queda respondido de qué sigue flojo, y di qué haría falta para cerrarlo.',
+    selection: ASSISTANT_CONTEXTS.idea,
+  },
+  disputed: {
+    title: 'Sub-pregunta en disputa',
+    prompt: 'Mis fuentes se contradicen sobre esta sub-pregunta. Expón las posturas enfrentadas, en qué discrepan de verdad y qué decidiría entre ellas.',
+    selection: ASSISTANT_CONTEXTS.contradiction,
+  },
+};
+
+function assistantTarget(
+  status: RqCoverageStatus,
+  subText: string,
+  links: RqCoverageLink[]
+): PendingAssistantNavigationTarget {
+  const opener = ASSISTANT_OPENERS[status];
+  const evidence = links.map((l) => `· ${l.label}`).join('\n');
+  return {
+    title: t(opener.title),
+    selection: opener.selection,
+    prompt: evidence
+      ? `${t(opener.prompt)}\n\n${subText}\n\n${t('Lo que mi biblioteca enlaza aquí:')}\n${evidence}`
+      : `${t(opener.prompt)}\n\n${subText}`,
+  };
 }
 
 function LinkChip({ link, onClick, icon }: { link: RqCoverageLink; onClick: () => void; icon: string }) {
