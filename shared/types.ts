@@ -988,6 +988,7 @@ export type AiProvider =
   | 'anthropic'
   | 'openai'
   | 'codex'
+  | 'claude-code'
   | 'github-copilot'
   | 'opencode-go'
   | 'openrouter'
@@ -1052,6 +1053,22 @@ export interface ChatGptSubscriptionLogin {
   loginId: string;
   authUrl: string;
 }
+
+/**
+ * Renderer-safe view of the Claude session. Nodus reads the session the user's own
+ * `claude` CLI holds rather than managing one, so there is no login state here — and
+ * no credential ever crosses IPC.
+ */
+export interface ClaudeCodeSubscriptionStatus {
+  available: boolean;
+  connected: boolean;
+  email: string | null;
+  /** Claude plan reported by the runtime ("pro", "max", …), not an API tier. */
+  planType: string | null;
+  organization: string | null;
+  error: string | null;
+}
+
 
 /** One account-level quota bucket returned by the official GitHub Copilot runtime. */
 export interface GitHubCopilotSubscriptionQuotaWindow {
