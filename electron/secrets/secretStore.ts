@@ -2,7 +2,7 @@ import { app, safeStorage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AiProvider } from '@shared/types';
-import { AI_PROVIDERS, SECRET_PROVIDERS as PROVIDERS } from '@shared/providers';
+import { AI_PROVIDERS, SECRET_PROVIDERS as PROVIDERS, isSubscriptionProvider } from '@shared/providers';
 import { activeVaultDir, getActiveVault, listVaults, vaultDir } from '../vaults/vaultRegistry';
 
 // AI API keys are stored per provider, encrypted-at-rest via Electron safeStorage,
@@ -147,7 +147,7 @@ export function hasApiKey(provider: AiProvider): boolean {
 }
 
 export function clearApiKey(provider: AiProvider): void {
-  if (provider === 'codex' || provider === 'github-copilot') return;
+  if (isSubscriptionProvider(provider)) return;
   // An explicit delete applies to every released storage location AND to the
   // emergency archive; otherwise an old per-vault copy — or the archive getApiKey
   // now falls back to — would silently recreate the key on the next read.
@@ -623,7 +623,7 @@ export function clearBackupRecoveryKey(): void {
 
 /** Map of provider -> whether a key is stored, for the renderer (no keys exposed). */
 export function providerKeyMap(): Record<AiProvider, boolean> {
-  return Object.fromEntries(AI_PROVIDERS.map((p) => [p, p === 'codex' || p === 'github-copilot' ? false : hasApiKey(p)])) as Record<AiProvider, boolean>;
+  return Object.fromEntries(AI_PROVIDERS.map((p) => [p, isSubscriptionProvider(p) ? false : hasApiKey(p)])) as Record<AiProvider, boolean>;
 }
 
 /** Providers with a configured key. Keys are shared globally, so the vault id is
