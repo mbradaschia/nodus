@@ -8045,4 +8045,11 @@ export const DE: Record<string, string> = {
   "Revocar navegadores emparejados": "Gekoppelte Browser widerrufen",
   "Se ha revocado el acceso de los navegadores emparejados.": "Der Zugriff gekoppelter Browser wurde widerrufen.",
   "Chrome no permite que una app instale extensiones silenciosamente. Descarga el ZIP, descomprímelo y usa Cargar descomprimida en chrome://extensions.": "Chrome erlaubt Apps keine stille Erweiterungsinstallation. Lade die ZIP-Datei herunter, entpacke sie und wähle in chrome://extensions die Option Entpackte Erweiterung laden.",
+  "El uso consume la cuota incluida en tu plan de Claude (Pro o Max); no consume saldo de la API de Anthropic.": "Die Nutzung verbraucht das in deinem Claude-Tarif (Pro oder Max) enthaltene Kontingent, nicht dein Anthropic-API-Guthaben.",
+  "Cada petición usa un turno aislado, sin herramientas, sin acceso al sistema de archivos y sin cargar tus MCP, plugins ni instrucciones personales.": "Jede Anfrage nutzt einen isolierten Turn – ohne Werkzeuge, ohne Dateisystemzugriff und ohne deine MCP-Server, Plugins oder persönlichen Anweisungen zu laden.",
+  "Documentación oficial del Claude Agent SDK ↗": "Offizielle Dokumentation des Claude Agent SDK ↗",
+  "Cargar modelos de Claude": "Claude-Modelle laden",
+  "Conexión mediante el Claude Agent SDK oficial. Nodus reutiliza la sesión de Claude Code de tu terminal y no lee ni almacena tus credenciales.": "Verbindung über das offizielle Claude Agent SDK. Nodus verwendet die Claude-Code-Sitzung aus deinem Terminal und liest oder speichert deine Zugangsdaten nicht.",
+  "La sesión se gestiona desde la terminal: usa «claude auth login» para iniciarla y «claude auth logout» para cerrarla.": "Die Sitzung wird im Terminal verwaltet: «claude auth login» zum Anmelden, «claude auth logout» zum Abmelden.",
+  "Sin sesión iniciada. Ejecuta «claude auth login» en tu terminal y vuelve a comprobar.": "Nicht angemeldet. Führe «claude auth login» im Terminal aus und prüfe erneut.",
 };
