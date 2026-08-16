@@ -7789,4 +7789,11 @@ export const TR: Record<string, string> = {
   "Revocar navegadores emparejados": "Eşleştirilmiş tarayıcıları iptal et",
   "Se ha revocado el acceso de los navegadores emparejados.": "Eşleştirilmiş tarayıcıların erişimi iptal edildi.",
   "Chrome no permite que una app instale extensiones silenciosamente. Descarga el ZIP, descomprímelo y usa Cargar descomprimida en chrome://extensions.": "Chrome, bir uygulamanın uzantıları sessizce yüklemesine izin vermez. ZIP dosyasını indirip çıkarın ve chrome://extensions sayfasında Paketlenmemiş öğe yükle seçeneğini kullanın.",
+  "El uso consume la cuota incluida en tu plan de Claude (Pro o Max); no consume saldo de la API de Anthropic.": "Kullanım, Claude planına (Pro veya Max) dahil olan kotayı tüketir; Anthropic API bakiyeni kullanmaz.",
+  "Cada petición usa un turno aislado, sin herramientas, sin acceso al sistema de archivos y sin cargar tus MCP, plugins ni instrucciones personales.": "Her istek yalıtılmış bir tur kullanır: araç yok, dosya sistemi erişimi yok ve MCP sunucuların, eklentilerin veya kişisel yönergelerin yüklenmez.",
+  "Documentación oficial del Claude Agent SDK ↗": "Resmî Claude Agent SDK belgeleri ↗",
+  "Cargar modelos de Claude": "Claude modellerini yükle",
+  "Conexión mediante el Claude Agent SDK oficial. Nodus reutiliza la sesión de Claude Code de tu terminal y no lee ni almacena tus credenciales.": "Resmî Claude Agent SDK üzerinden bağlantı. Nodus terminalindeki Claude Code oturumunu yeniden kullanır; kimlik bilgilerini okumaz ve saklamaz.",
+  "La sesión se gestiona desde la terminal: usa «claude auth login» para iniciarla y «claude auth logout» para cerrarla.": "Oturum terminalden yönetilir: açmak için «claude auth login», kapatmak için «claude auth logout».",
+  "Sin sesión iniciada. Ejecuta «claude auth login» en tu terminal y vuelve a comprobar.": "Oturum açılmamış. Terminalde «claude auth login» çalıştır ve yeniden denetle.",
 };
