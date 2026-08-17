@@ -1,3 +1,4 @@
 node_modules/
+.venv/
 out-*.txt
 package-lock.json
