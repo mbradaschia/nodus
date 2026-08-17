@@ -22,7 +22,7 @@ async function pdfToText(input: string, ctx: ToolkitRunContext): Promise<Toolkit
     for (let p = 1; p <= pdf.numPages; p++) {
       if (ctx.signal.cancelled) break;
       const page = await pdf.getPage(p);
-      parts.push(await pageText(page));
+      parts.push(await pageText(page, p));
       page.cleanup?.();
       ctx.onPageProgress(p / pdf.numPages);
     }

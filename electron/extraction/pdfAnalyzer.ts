@@ -1,4 +1,4 @@
-import { openPdf, pageText } from './pdfjsLoader';
+import { openPdf, pageTextRaw } from './pdfjsLoader';
 import type { PdfAnalysis, ExtractStrategy } from '@shared/types';
 
 // A page is considered to have a usable text layer if it yields at least this many chars.
@@ -30,7 +30,9 @@ export async function analyzePdf(filePath: string): Promise<PdfAnalysis> {
   let totalChars = 0;
   for (const p of indices) {
     const page = await pdf.getPage(p);
-    const txt = await pageText(page);
+    // Raw concatenation is enough (and cheaper) to decide whether a text layer
+    // exists; the coverage thresholds below are calibrated against its char counts.
+    const txt = await pageTextRaw(page);
     page.cleanup?.();
     if (txt.length >= MIN_CHARS_TEXT_PAGE) {
       textPages++;

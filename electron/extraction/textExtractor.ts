@@ -4,7 +4,8 @@ import os from 'node:os';
 import AdmZip from 'adm-zip';
 import type { DeepContextMode, SourceType, PdfAnalysis } from '@shared/types';
 import { itemChildren, itemAsAttachment, getFulltext, ZoteroAttachment } from '../zotero/zoteroClient';
-import { openPdf, pageText } from './pdfjsLoader';
+import { openPdf } from './pdfjsLoader';
+import { layoutPageText, pageLayout, repeatedChrome, withoutItems, type PageLayout } from './pdfLayout';
 import { analyzePdf } from './pdfAnalyzer';
 import { ocrPdfPages, ocrImageFile } from './ocr';
 import { csvFileToText, xlsxFileToText } from './tabular';
@@ -208,15 +209,26 @@ export async function extractPdfStreaming(
   const pageTexts = new Map<number, string>();
   const blanks: number[] = [];
 
+  // Two-stage so running headers/footers can be removed: chrome is only
+  // identifiable across the whole document, but pdfjs page objects are released
+  // as we go and each layout keeps only line-level geometry (items dropped), so
+  // the retained footprint stays close to the page-text map we built before.
+  const layouts: PageLayout[] = [];
   for (let p = 1; p <= total; p++) {
     opts.onProgress?.({ phase: 'extract', detail: `Extrayendo p. ${p}/${total}`, pct: p / total });
     const page = await pdf.getPage(p);
-    const txt = await pageText(page);
+    layouts.push(withoutItems(await pageLayout(page, p)));
     page.cleanup?.();
-    if (txt.length >= MIN_CHARS_TEXT_PAGE) pageTexts.set(p, txt);
-    else blanks.push(p);
   }
-  extractionDone({ textPages: pageTexts.size, blankPages: blanks.length });
+
+  const chrome = repeatedChrome(layouts);
+  for (const layout of layouts) {
+    const txt = layoutPageText(layout, chrome);
+    if (txt.length >= MIN_CHARS_TEXT_PAGE) pageTexts.set(layout.page, txt);
+    else blanks.push(layout.page);
+  }
+  layouts.length = 0;
+  extractionDone({ textPages: pageTexts.size, blankPages: blanks.length, chromeLines: chrome.size });
 
   let ocredPages = 0;
   let skippedPages = blanks.length;

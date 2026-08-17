@@ -13,6 +13,17 @@ import type {
   LibrarySourceMap,
 } from '@shared/libraryTypes';
 import { openPdf, loadPdfjs } from '../extraction/pdfjsLoader';
+import {
+  cleanInlineText,
+  dehyphenatingJoin,
+  median,
+  pageLayout,
+  readingOrder,
+  repeatedChrome,
+  type LayoutLine,
+  type PageLayout,
+  type PositionedItem,
+} from '../extraction/pdfLayout';
 import { ocrPdfPages } from '../extraction/ocr';
 import { csvFileToText, xlsxFileToText } from '../extraction/tabular';
 import { atomicWriteFile, atomicWriteJson, assertInside, safeLibraryFolderName } from './libraryFileUtils';
@@ -33,28 +44,6 @@ export const DEFAULT_LIBRARY_EXTRACTION_OPTIONS: LibraryExtractionOptions = {
   force: false,
 };
 
-interface PositionedItem {
-  text: string;
-  x0: number;
-  x1: number;
-  top: number;
-  bottom: number;
-  size: number;
-  baseline: number;
-}
-
-interface LayoutLine {
-  text: string;
-  page: number;
-  x0: number;
-  x1: number;
-  top: number;
-  bottom: number;
-  size: number;
-  items: PositionedItem[];
-  paragraphBreakBefore?: boolean;
-}
-
 interface OutputBlock {
   kind: LibrarySourceBlock['kind'];
   text: string;
@@ -64,14 +53,6 @@ interface OutputBlock {
   fontSize?: number;
   lastLine?: LayoutLine;
   tableVisual?: { page: number; bbox: [number, number, number, number] };
-}
-
-interface PageLayout {
-  page: number;
-  width: number;
-  height: number;
-  lines: LayoutLine[];
-  ocr?: boolean;
 }
 
 export interface LibraryExtractionResult {
@@ -132,30 +113,10 @@ function sha256File(file: string): string {
   return hash.digest('hex');
 }
 
-export function cleanInlineText(value: string): string {
-  return value
-    .normalize('NFC')
-    .replace(/\u00ad/g, '')
-    .replace(/\u00a0/g, ' ')
-    .replace(/[\t ]+/g, ' ')
-    .replace(/[-‐‑‒–—]{2,}/g, '-')
-    .replace(/\b(fi|fl)\s+(?=\p{Ll}{2,})/gu, '$1')
-    .replace(/(\p{L}+)\s+([áéíóúü])\s+(\p{L}+)/giu, (_whole, left: string, vowel: string, right: string) => `${left}${vowel}${right.length > 1 ? right : ` ${right}`}`)
-    .replace(/(\p{L}{2,}[áéíóúü])\s+([bcdfghjklmnñpqrstvwxyz])(?=\s|[,.;:!?)]|$)/giu, '$1$2')
-    .replace(/\s+([,.;:!?%)\]}»”])/g, '$1')
-    .replace(/([¿¡([{«“])\s+/g, '$1')
-    .trim();
-}
-
-function dehyphenatingJoin(left: string, right: string): string {
-  const first = left.trimEnd();
-  const second = right.trimStart();
-  if (!first) return second;
-  if (!second) return first;
-  if (/\d-$/u.test(first) && /^\d/u.test(second)) return cleanInlineText(`${first}${second}`);
-  if (/\p{L}{2,}-$/u.test(first) && /^\p{Ll}/u.test(second)) return cleanInlineText(`${first.slice(0, -1)}${second}`);
-  return cleanInlineText(`${first} ${second}`);
-}
+// The text-layout primitives live in extraction/pdfLayout so the analysis
+// pipeline and the Toolkit converters share them; re-exported here because
+// callers of this module have always found cleanInlineText on it.
+export { cleanInlineText };
 
 export function normalizeCleanMarkdown(value: string): string {
   const input = value.replace(/\r\n?/g, '\n').normalize('NFC').replace(/\u00ad/g, '');
@@ -178,12 +139,6 @@ export function normalizeCleanMarkdown(value: string): string {
   return output.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
 }
 
-function median(values: number[]): number {
-  if (!values.length) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
-}
 
 function rounded(value: number): number {
   return Math.round(value * 100) / 100;
@@ -203,101 +158,6 @@ function mergeAnchors(lines: LayoutLine[]): LibrarySourceAnchor[] {
   return [...pages].sort(([a], [b]) => a - b).map(([page, box]) => ({ page, bbox: box.map(rounded) as LibrarySourceAnchor['bbox'] }));
 }
 
-function joinLineItems(items: PositionedItem[]): string {
-  const ordered = [...items].sort((a, b) => a.x0 - b.x0);
-  const bodySize = median(ordered.map((item) => item.size));
-  const bodyBaseline = median(ordered.filter((item) => item.size >= bodySize * 0.85).map((item) => item.baseline));
-  let text = '';
-  let previous: PositionedItem | null = null;
-  for (const item of ordered) {
-    if (!item.text.trim()) continue;
-    const gap = previous ? item.x0 - previous.x1 : 0;
-    const average = previous ? Math.max(2, (previous.x1 - previous.x0) / Math.max(1, previous.text.length)) : 4;
-    const superscriptReference = /^\d{1,3}$/.test(item.text.trim())
-      && ordered.length > 1
-      && item.size <= bodySize * 0.72
-      && item.baseline <= bodyBaseline - bodySize * 0.12;
-    const normalizedItem = item.text.normalize('NFC');
-    const isolatedGlyph = [...normalizedItem.trim()].length === 1 && /\p{L}/u.test(normalizedItem.trim());
-    const explicitWhitespace = !!previous && (/\s$/.test(previous.text) || /^\s/.test(item.text));
-    const token = superscriptReference ? `[^${item.text.trim()}]` : normalizedItem;
-    const separator = previous && !superscriptReference && (explicitWhitespace || (gap > average * 0.35 && !isolatedGlyph)) ? ' ' : '';
-    text += `${separator}${token}`;
-    previous = item;
-  }
-  return cleanInlineText(text);
-}
-
-async function pageLayout(page: any, number: number): Promise<PageLayout> {
-  const viewport = page.getViewport({ scale: 1 });
-  const content = await page.getTextContent({ includeMarkedContent: true });
-  const positioned: PositionedItem[] = [];
-  for (const raw of content.items ?? []) {
-    if (typeof raw?.str !== 'string' || !raw.str.trim() || !Array.isArray(raw.transform)) continue;
-    const x0 = Number(raw.transform[4]) || 0;
-    const baseline = Number(raw.transform[5]) || 0;
-    const size = Math.max(1, Math.abs(Number(raw.transform[3]) || Number(raw.height) || 10));
-    const normalizedLength = Math.max(1, [...raw.str.normalize('NFC')].length);
-    const width = Math.max(0, Number(raw.width) || normalizedLength * size * 0.45);
-    positioned.push({
-      text: raw.str, x0, x1: x0 + width,
-      top: viewport.height - baseline - size,
-      bottom: viewport.height - baseline + size * 0.25,
-      size, baseline: viewport.height - baseline,
-    });
-  }
-  positioned.sort((a, b) => a.top - b.top || a.x0 - b.x0);
-  const groups: PositionedItem[][] = [];
-  for (const item of positioned) {
-    let group: PositionedItem[] | undefined;
-    for (let index = groups.length - 1; index >= 0; index -= 1) {
-      const candidate = groups[index];
-      const sameTop = Math.abs(median(candidate.map((entry) => entry.top)) - item.top) <= Math.max(2.5, item.size * 0.28);
-      const sameBaseline = Math.abs(median(candidate.map((entry) => entry.baseline)) - item.baseline) <= Math.max(2, item.size * 0.22);
-      if (sameTop || sameBaseline) { group = candidate; break; }
-    }
-    if (group) group.push(item); else groups.push([item]);
-  }
-  const lines = groups.map((items) => ({
-    text: joinLineItems(items), page: number,
-    x0: Math.min(...items.map((entry) => entry.x0)), x1: Math.max(...items.map((entry) => entry.x1)),
-    top: Math.min(...items.map((entry) => entry.top)), bottom: Math.max(...items.map((entry) => entry.bottom)),
-    size: median(items.map((entry) => entry.size)), items: [...items].sort((a, b) => a.x0 - b.x0),
-  })).filter((line) => line.text);
-  return { page: number, width: viewport.width, height: viewport.height, lines };
-}
-
-function repeatedChrome(pages: PageLayout[]): Set<string> {
-  const counts = new Map<string, Set<number>>();
-  for (const page of pages) {
-    for (const line of page.lines.filter((entry) => entry.top < page.height * 0.13 || entry.bottom > page.height * 0.88)) {
-      const key = cleanInlineText(line.text).toLocaleLowerCase().replace(/\d+/g, '#');
-      if (key.length < 3 || key.length > 180) continue;
-      counts.set(key, new Set([...(counts.get(key) ?? []), page.page]));
-    }
-  }
-  const threshold = Math.max(3, Math.ceil(pages.length * 0.32));
-  return new Set([...counts].filter(([, pageSet]) => pageSet.size >= threshold).map(([key]) => key));
-}
-
-function readingOrder(page: PageLayout): LayoutLine[] {
-  const lines = [...page.lines];
-  if (page.ocr) return lines;
-  const middle = page.width / 2;
-  const left = lines.filter((line) => line.x0 < middle - 15 && line.x1 <= middle + 30 && line.x1 - line.x0 < page.width * 0.7);
-  const right = lines.filter((line) => line.x0 >= middle - 30 && line.x1 - line.x0 < page.width * 0.7);
-  if (left.length < 4 || right.length < 4) return lines.sort((a, b) => a.top - b.top || a.x0 - b.x0);
-  const spanning = lines.filter((line) => !left.includes(line) && !right.includes(line)).sort((a, b) => a.top - b.top);
-  const firstColumnTop = Math.min(...left.map((line) => line.top), ...right.map((line) => line.top));
-  const header = spanning.filter((line) => line.bottom <= firstColumnTop + 5);
-  const footer = spanning.filter((line) => !header.includes(line));
-  return [
-    ...header,
-    ...left.sort((a, b) => a.top - b.top || a.x0 - b.x0),
-    ...right.sort((a, b) => a.top - b.top || a.x0 - b.x0),
-    ...footer,
-  ];
-}
 
 interface TableRowCandidate {
   line: LayoutLine;

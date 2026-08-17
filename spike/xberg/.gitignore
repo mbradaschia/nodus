@@ -2,3 +2,5 @@ node_modules/
 .venv/
 out-*.txt
 package-lock.json
+man-*.txt
+corpus/*.txt
