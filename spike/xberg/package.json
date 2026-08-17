@@ -1,0 +1,16 @@
+{
+  "name": "xberg",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@xberg-io/xberg": "^1.0.14",
+    "pdfjs-dist": "^4.8.69"
+  }
+}
