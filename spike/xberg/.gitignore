@@ -4,3 +4,5 @@ out-*.txt
 package-lock.json
 man-*.txt
 corpus/*.txt
+tk-*.md
+tk-*.txt

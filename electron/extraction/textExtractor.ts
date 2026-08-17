@@ -5,7 +5,7 @@ import AdmZip from 'adm-zip';
 import type { DeepContextMode, SourceType, PdfAnalysis } from '@shared/types';
 import { itemChildren, itemAsAttachment, getFulltext, ZoteroAttachment } from '../zotero/zoteroClient';
 import { openPdf } from './pdfjsLoader';
-import { layoutPageText, pageLayout, repeatedChrome, withoutItems, type PageLayout } from './pdfLayout';
+import { layoutPageText, pageLayout, repeatedChrome, withoutItems, type PageLayout } from '@shared/pdfLayout';
 import { analyzePdf } from './pdfAnalyzer';
 import { ocrPdfPages, ocrImageFile } from './ocr';
 import { csvFileToText, xlsxFileToText } from './tabular';

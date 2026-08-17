@@ -8,7 +8,21 @@ import { markdownToHtml, escapeHtml } from '@shared/toolkitMarkdown';
 import type { ToolkitOpRegistry, ToolkitRunContext } from '../toolkitJobs';
 import type { ToolkitProduced } from '@shared/toolkitTypes';
 import { buildZip, crc32, type ZipEntry } from '../zip';
-import { openPdf, pageText } from '../../extraction/pdfjsLoader';
+import { openPdf } from '../../extraction/pdfjsLoader';
+import {
+  chromeCandidates,
+  chromeKey,
+  cleanInlineText,
+  groupParagraphs,
+  layoutPageText,
+  pageLayout,
+  paragraphText,
+  readingOrder,
+  type LayoutLine,
+  repeatedChrome,
+  withoutItems,
+  type PageLayout,
+} from '@shared/pdfLayout';
 
 const enc = new TextEncoder();
 const readText = (filePath: string): string => fs.readFileSync(filePath, 'utf8');
@@ -17,88 +31,81 @@ const readText = (filePath: string): string => fs.readFileSync(filePath, 'utf8')
 
 async function pdfToText(input: string, ctx: ToolkitRunContext): Promise<ToolkitProduced[]> {
   const pdf = await openPdf(input);
-  const parts: string[] = [];
+  const layouts: PageLayout[] = [];
   try {
     for (let p = 1; p <= pdf.numPages; p++) {
       if (ctx.signal.cancelled) break;
       const page = await pdf.getPage(p);
-      parts.push(await pageText(page, p));
+      layouts.push(withoutItems(await pageLayout(page, p)));
       page.cleanup?.();
       ctx.onPageProgress(p / pdf.numPages);
     }
   } finally {
     await pdf.destroy?.();
   }
+  // Collected across the document first: a running header can only be told from
+  // body text by the fact that it recurs, so a page at a time cannot drop it.
+  const chrome = repeatedChrome(layouts);
+  const parts = layouts.map((layout) => layoutPageText(layout, chrome));
   return [{ data: enc.encode(parts.join('\n\n').trim() + '\n'), ext: 'txt' }];
-}
-
-interface PdfLine {
-  text: string;
-  size: number;
-}
-
-/** Group a page's text items into lines with a representative font size. */
-async function pdfPageLines(page: any): Promise<PdfLine[]> {
-  const content = await page.getTextContent();
-  const lines: PdfLine[] = [];
-  let currentY: number | null = null;
-  let buf: string[] = [];
-  let size = 0;
-  const flush = () => {
-    const text = buf.join('').replace(/\s+/g, ' ').trim();
-    if (text) lines.push({ text, size });
-    buf = [];
-    size = 0;
-  };
-  for (const item of content.items) {
-    if (typeof item.str !== 'string') continue;
-    const tr = item.transform ?? [1, 0, 0, 1, 0, 0];
-    const y = tr[5];
-    const itemSize = Math.hypot(tr[2], tr[3]) || item.height || 0;
-    if (currentY === null || Math.abs(y - currentY) > 2) {
-      flush();
-      currentY = y;
-    }
-    buf.push(item.str);
-    size = Math.max(size, itemSize);
-    if (item.hasEOL) {
-      flush();
-      currentY = null;
-    }
-  }
-  flush();
-  return lines;
 }
 
 async function pdfToMarkdown(input: string, ctx: ToolkitRunContext): Promise<ToolkitProduced[]> {
   const pdf = await openPdf(input);
-  const allLines: PdfLine[] = [];
+  const layouts: PageLayout[] = [];
   try {
     for (let p = 1; p <= pdf.numPages; p++) {
       if (ctx.signal.cancelled) break;
       const page = await pdf.getPage(p);
-      allLines.push(...(await pdfPageLines(page)));
+      layouts.push(await pageLayout(page, p));
       page.cleanup?.();
       ctx.onPageProgress(p / pdf.numPages);
     }
   } finally {
     await pdf.destroy?.();
   }
-  // Body font size = the most common line size; larger lines become headings.
+
+  // Body font size = the most common line size; larger blocks become headings.
   const freq = new Map<number, number>();
-  for (const l of allLines) {
-    const k = Math.round(l.size);
-    freq.set(k, (freq.get(k) ?? 0) + 1);
+  for (const layout of layouts) {
+    for (const line of layout.lines) freq.set(Math.round(line.size), (freq.get(Math.round(line.size)) ?? 0) + 1);
   }
   let bodySize = 12;
   let best = -1;
-  for (const [k, n] of freq) if (n > best) { best = n; bodySize = k; }
+  for (const [size, n] of freq) if (n > best) { best = n; bodySize = size; }
+
+  const chrome = repeatedChrome(layouts);
+  const candidates = new Map(layouts.map((layout) => [layout, new Set(chromeCandidates(layout))]));
   const md: string[] = [];
-  for (const line of allLines) {
-    const ratio = bodySize > 0 ? line.size / bodySize : 1;
-    if (ratio >= 1.8) md.push(`# ${line.text}`);
-    else if (ratio >= 1.3) md.push(`## ${line.text}`);
-    else md.push(line.text);
+  const sizeRatio = (line: LayoutLine): number => (bodySize > 0 ? line.size / bodySize : 1);
+
+  for (const layout of layouts) {
+    const marginLines = candidates.get(layout)!;
+    const lines = readingOrder(layout)
+      .filter((line) => !(marginLines.has(line) && chrome.has(chromeKey(line.text))));
+
+    // Headings are classified per line by font size, as before. Only the body
+    // runs between them are grouped into paragraphs, so a heading set close
+    // above its first paragraph still comes out as a heading.
+    let body: LayoutLine[] = [];
+    const flushBody = (): void => {
+      for (const group of groupParagraphs(body)) {
+        const text = paragraphText(group);
+        if (text) md.push(text);
+      }
+      body = [];
+    };
+    for (const line of lines) {
+      const ratio = sizeRatio(line);
+      if (ratio >= 1.3) {
+        flushBody();
+        const text = cleanInlineText(line.text);
+        if (text) md.push(ratio >= 1.8 ? `# ${text}` : `## ${text}`);
+      } else {
+        body.push(line);
+      }
+    }
+    flushBody();
   }
   return [{ data: enc.encode(md.join('\n\n').trim() + '\n'), ext: 'md' }];
 }

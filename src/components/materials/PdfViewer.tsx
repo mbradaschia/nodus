@@ -3,6 +3,7 @@ import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { GlobalWorkerOptions, Util, getDocument } from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { StudyMaterialAnnotation, StudyMaterialAnnotationInput, StudyMaterialContent, StudyMaterialDetail, StudyMaterialPoint, StudyMaterialRect } from '@shared/types';
+import { layoutPageText, pageLayout } from '@shared/pdfLayout';
 import { Icon, Spinner } from '../ui';
 import { t } from '../../i18n';
 
@@ -103,7 +104,9 @@ export function PdfViewer({ content, material, onAnnotation, onUpdateAnnotation,
       for (let pageNumber = 1; pageNumber <= pdf.numPages && matches.length < 250; pageNumber += 1) {
         if (searchRunRef.current !== runId) return;
         let pageText = pageTextCacheRef.current.get(pageNumber);
-        if (pageText == null) { const page = await pdf.getPage(pageNumber); const textContent = await page.getTextContent(); pageText = textContent.items.map((item) => 'str' in item ? item.str : '').join(' ').replace(/\s+/g, ' ').trim(); pageTextCacheRef.current.set(pageNumber, pageText); }
+        // Reconstruct lines rather than concatenating raw items: a phrase broken
+        // by a line-break hyphen, or split across columns, is otherwise unfindable.
+        if (pageText == null) { const page = await pdf.getPage(pageNumber); pageText = layoutPageText(await pageLayout(page, pageNumber)).replace(/\s+/g, ' ').trim(); page.cleanup?.(); pageTextCacheRef.current.set(pageNumber, pageText); }
         const normalized = pageText.toLocaleLowerCase(); let from = 0; let occurrence = 0;
         while (matches.length < 250) { const index = normalized.indexOf(query, from); if (index < 0) break; occurrence += 1; const a = Math.max(0, index - 55); const b = Math.min(pageText.length, index + query.length + 85); matches.push({ pageNumber, occurrence, snippet: `${a ? '…' : ''}${pageText.slice(a, b)}${b < pageText.length ? '…' : ''}` }); from = index + Math.max(1, query.length); if (occurrence >= 20) break; }
       }

@@ -19,7 +19,7 @@ const { installRuntimeHooks } = await import(path.join(repoRoot, 'scripts/lib/ts
 installRuntimeHooks(fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'nodus-dbg-')));
 
 const { openPdf } = require(path.join(repoRoot, 'electron/extraction/pdfjsLoader.ts'));
-const { pageLayout, readingOrder } = require(path.join(repoRoot, 'electron/extraction/pdfLayout.ts'));
+const { pageLayout, readingOrder } = require(path.join(repoRoot, 'shared/pdfLayout.ts'));
 
 const file = process.argv[process.argv.indexOf('--electron-eval') + 1];
 const pdf = await openPdf(file);

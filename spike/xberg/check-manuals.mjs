@@ -21,7 +21,7 @@ const { installRuntimeHooks } = await import(path.join(repoRoot, 'scripts/lib/ts
 installRuntimeHooks(fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'nodus-man-')));
 const { openPdf } = require(path.join(repoRoot, 'electron/extraction/pdfjsLoader.ts'));
 const { pageLayout, repeatedChrome, layoutPageText, withoutItems } =
-  require(path.join(repoRoot, 'electron/extraction/pdfLayout.ts'));
+  require(path.join(repoRoot, 'shared/pdfLayout.ts'));
 
 const dir = path.join(repoRoot, 'site/manuals');
 const rows = [];

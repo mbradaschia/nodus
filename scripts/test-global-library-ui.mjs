@@ -271,7 +271,7 @@ test('the global reader exposes annotations, metadata, chat and native attachmen
   assert.match(reader, /target:\s*\{\s*type:\s*'region'/);
   assert.match(reader, /ReaderSelectionActions/);
   assert.match(readerSource, /selectedSource === 'clean' && <FindInPage targetRef=\{documentRef\}/, 'clean Markdown owns the document-wide find panel');
-  assert.match(attachmentViewer, /loadFindSegments[\s\S]*pdf\.numPages[\s\S]*getTextContent/, 'PDF search lazily indexes every page');
+  assert.match(attachmentViewer, /loadFindSegments[\s\S]*pdf\.numPages[\s\S]*layoutPageText\(await pageLayout\(/, 'PDF search lazily indexes every page through the shared layout reconstruction');
   assert.match(attachmentViewer, /pageIndex % 4 === 0[\s\S]*setTimeout/, 'long PDF indexing yields to the renderer');
   assert.match(attachmentViewer, /content\.chapters\.map\(\(chapter\) => \(\{ id: chapter\.id, text: chapter\.text/ , 'EPUB search indexes every chapter');
   assert.match(attachmentViewer, /FindInPage targetRef=\{targetRef\} segments=\{findSegments\}/, 'reflowable readers use the segmented document index');

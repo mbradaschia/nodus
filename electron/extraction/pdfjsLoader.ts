@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { layoutPageText, pageLayout } from './pdfLayout';
 
 // Single place to load the pdfjs legacy build (no DOM) and open a document.
 // pdfjs is an ESM-only package; dynamic import keeps it external to the main bundle.
@@ -33,22 +32,11 @@ export async function openPdf(filePath: string): Promise<any> {
 }
 
 /**
- * Readable text of a single page: lines rebuilt from item geometry, ordered for
- * reading, and assembled into paragraphs.
- *
- * Running headers/footers can only be identified across the whole document, so
- * they survive here. Callers extracting a complete PDF should use
- * extractPdfStreaming (textExtractor), which strips them.
- */
-export async function pageText(page: any, pageNumber = 1): Promise<string> {
-  const layout = await pageLayout(page, pageNumber);
-  return layoutPageText(layout);
-}
-
-/**
  * Raw item concatenation, without layout reconstruction. Only useful for
  * cheaply asking "does this page carry a text layer at all?" — pdfAnalyzer's
- * coverage sampling. Never use it for text a human or a model will read.
+ * coverage sampling. Never use it for text a human or a model will read: use
+ * `pageLayout` + `layoutPageText` from @shared/pdfLayout, over the whole
+ * document so running headers can be identified and dropped.
  */
 export async function pageTextRaw(page: any): Promise<string> {
   const content = await page.getTextContent();

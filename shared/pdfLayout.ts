@@ -8,8 +8,13 @@
 //
 // This module rebuilds actual lines from item geometry, orders them for reading,
 // and identifies repeated page chrome. It was factored out of the Library
-// extraction engine so the analysis pipeline (textExtractor) and the Toolkit
-// converters share one implementation instead of each hand-rolling their own.
+// extraction engine so the analysis pipeline (textExtractor), the Toolkit
+// converters and the renderer's PDF search share one implementation instead of
+// each hand-rolling their own.
+//
+// It lives in shared/ and has no imports on purpose: `pageLayout` only needs a
+// pdfjs page object, which exists identically in the main process and in the
+// renderer, so both sides read a PDF the same way.
 
 export interface PositionedItem {
   text: string;
@@ -312,15 +317,17 @@ export function readingOrder(page: PageLayout): LayoutLine[] {
 const LIST_START_RE = /^\s*(?:[-*+•·–—]\s+|\d+[.)]\s+|[a-z][.)]\s+)/i;
 
 /**
- * Assemble ordered lines into paragraph text. Lines of the same paragraph are
- * joined with hyphen repair; a new paragraph starts on a large vertical gap, a
- * column jump, or a list marker.
+ * Split ordered lines into paragraphs. A new paragraph starts on a large
+ * vertical gap, a list marker, or a column jump that follows a finished
+ * sentence. Returns the lines of each paragraph so callers that need more than
+ * prose — a Markdown converter classifying headings, say — keep the geometry.
  */
-export function linesToText(lines: LayoutLine[]): string {
-  if (!lines.length) return '';
+export function groupParagraphs(lines: LayoutLine[]): LayoutLine[][] {
+  if (!lines.length) return [];
   const bodySize = median(lines.map((line) => line.size)) || 10;
-  const paragraphs: string[] = [];
-  let current = '';
+  const paragraphs: LayoutLine[][] = [];
+  let current: LayoutLine[] = [];
+  let text = '';
   let previous: LayoutLine | null = null;
 
   for (const line of lines) {
@@ -330,20 +337,35 @@ export function linesToText(lines: LayoutLine[]): string {
     // A paragraph routinely runs off the foot of one column and continues at the
     // head of the next. Treat the jump as a paragraph end only when the previous
     // line actually finished a sentence, otherwise the prose is torn mid-word.
-    const jumpEndsParagraph = columnJump && /[.!?:;][)"'”’\]]?$/.test(current.trimEnd());
+    const jumpEndsParagraph = columnJump && /[.!?:;][)"'”’\]]?$/.test(text.trimEnd());
     const breakHere = previous != null
       && (gap > bodySize * 1.15 || jumpEndsParagraph || startsList || line.paragraphBreakBefore === true);
 
     if (breakHere) {
-      if (current) paragraphs.push(current);
-      current = line.text;
+      if (current.length) paragraphs.push(current);
+      current = [line];
+      text = line.text;
     } else {
-      current = current ? dehyphenatingJoin(current, line.text) : line.text;
+      current.push(line);
+      text = text ? dehyphenatingJoin(text, line.text) : line.text;
     }
     previous = line;
   }
-  if (current) paragraphs.push(current);
-  return paragraphs.filter(Boolean).join('\n\n');
+  if (current.length) paragraphs.push(current);
+  return paragraphs;
+}
+
+/** Join the lines of one paragraph into a single string, repairing hyphens. */
+export function paragraphText(lines: LayoutLine[]): string {
+  return lines.reduce((acc, line) => (acc ? dehyphenatingJoin(acc, line.text) : line.text), '');
+}
+
+/**
+ * Assemble ordered lines into paragraph text. Lines of the same paragraph are
+ * joined with hyphen repair; paragraphs are separated by a blank line.
+ */
+export function linesToText(lines: LayoutLine[]): string {
+  return groupParagraphs(lines).map(paragraphText).filter(Boolean).join('\n\n');
 }
 
 /**

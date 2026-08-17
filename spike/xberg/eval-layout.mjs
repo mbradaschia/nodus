@@ -34,7 +34,7 @@ installRuntimeHooks(fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'nodus
 
 const { openPdf } = require(path.join(repoRoot, 'electron/extraction/pdfjsLoader.ts'));
 const { pageLayout, repeatedChrome, layoutPageText, withoutItems } =
-  require(path.join(repoRoot, 'electron/extraction/pdfLayout.ts'));
+  require(path.join(repoRoot, 'shared/pdfLayout.ts'));
 
 // ── the two extractors ───────────────────────────────────────────────────────
 

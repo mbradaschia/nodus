@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import { GlobalWorkerOptions, getDocument, TextLayer } from 'pdfjs-dist';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { layoutPageText, pageLayout } from '@shared/pdfLayout';
 import type {
   LibraryReaderAttachment,
   LibraryReaderAttachmentContent,
@@ -137,8 +138,11 @@ function PdfViewer(props: ViewerProps) {
     const promise = (async () => {
       const next: FindTextSegment[] = [];
       for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex += 1) {
-        const page = await pdf.getPage(pageIndex); const content = await page.getTextContent();
-        next.push({ id: String(pageIndex), text: content.items.map((item) => 'str' in item && typeof item.str === 'string' ? item.str : '').join(' ') });
+        // Reconstruct lines rather than concatenating raw items: a phrase broken
+        // by a line-break hyphen, or split across columns, is otherwise unfindable.
+        const page = await pdf.getPage(pageIndex);
+        next.push({ id: String(pageIndex), text: layoutPageText(await pageLayout(page, pageIndex)) });
+        page.cleanup?.();
         if (pageIndex % 4 === 0) await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
       }
       return next;

@@ -23,7 +23,7 @@ import {
   type LayoutLine,
   type PageLayout,
   type PositionedItem,
-} from '../extraction/pdfLayout';
+} from '@shared/pdfLayout';
 import { ocrPdfPages } from '../extraction/ocr';
 import { csvFileToText, xlsxFileToText } from '../extraction/tabular';
 import { atomicWriteFile, atomicWriteJson, assertInside, safeLibraryFolderName } from './libraryFileUtils';
